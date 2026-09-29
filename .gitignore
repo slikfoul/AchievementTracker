@@ -1,0 +1,9 @@
+# Сборка
+bin/
+obj/
+*.user
+.vs/
+
+# Готовые пакеты и собранная dll — собираются из исходников
+*.zip
+package/AchievementTracker.dll
