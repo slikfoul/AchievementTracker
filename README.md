@@ -4,6 +4,12 @@ Client-side BepInEx/Jötunn mod for Valheim's built-in achievements: an achievem
 
 Full description for players: [package/README.md](package/README.md) · Changes: [package/CHANGELOG.md](package/CHANGELOG.md)
 
+![Achievement window](docs/screenshots/achievement-window.webp)
+
+![Progress popup and tracker](docs/screenshots/progress-popup-and-tracker.webp)
+
+![Stars at a crafting station](docs/screenshots/crafting-stars.webp)
+
 ## Building
 
 Requirements: .NET SDK, Valheim, a mod manager profile with BepInEx and Jötunn.

@@ -4,6 +4,20 @@ Client-side helper for Valheim's built-in achievements. See what you can complet
 
 > **Earning achievements with mods:** Valheim stops counting achievement progress when it detects mods (Jötunn marks the game as modded). This mod only *shows* achievements — to actually earn them while modded you also need a mod that lifts that restriction, for example [Unshamed](https://thunderstore.io/c/valheim/p/Azumatt/Unshamed/).
 
+## Screenshots
+
+**Achievement window (F7):** what's doable now, full requirements, a "how to get it" guide and what's still missing.
+
+![Achievement window](https://raw.githubusercontent.com/slikfoul/AchievementTracker/main/docs/screenshots/achievement-window.webp)
+
+**Progress popup and on-screen tracker:** the counter pops up when you fell a tree; tracked achievements stay on screen.
+
+![Progress popup and tracker](https://raw.githubusercontent.com/slikfoul/AchievementTracker/main/docs/screenshots/progress-popup-and-tracker.webp)
+
+**Stars at crafting stations:** items you haven't crafted yet for achievements are marked (optional).
+
+![Stars at a crafting station](https://raw.githubusercontent.com/slikfoul/AchievementTracker/main/docs/screenshots/crafting-stars.webp)
+
 ## Features
 
 - **Achievement window (F7)** with filters: *Doable now*, *Partly*, *Locked*, *Completed*, *Tracked*, *All*. Resize it by dragging the bottom-right corner; the size is remembered. Font size is adjustable.
