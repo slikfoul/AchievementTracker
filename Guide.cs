@@ -244,8 +244,8 @@ namespace AchievementTracker
             },
             ["GrindTrees"] = new[]
             {
-                "Сруби 500 деревьев. Считается падение дерева, а не разрубание брёвен.",
-                "Cut down 500 trees. The tree falling counts, not splitting the logs."
+                "Сруби 500 деревьев. Засчитывается каждое срубленное дерево; разрубание упавших брёвен на части не считается.",
+                "Cut down 500 trees. Every tree you cut down counts; chopping the fallen logs into pieces does not."
             },
             ["KillAllCreatures"] = new[]
             {

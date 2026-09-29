@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using HarmonyLib;
 using UnityEngine;
 
@@ -162,6 +163,8 @@ namespace AchievementTracker
                 }
             }
 
+            BuildOrigins();
+
             foreach (Recipe r in ObjectDB.instance.m_recipes)
             {
                 if (r?.m_item == null) continue;
@@ -181,6 +184,125 @@ namespace AchievementTracker
             }
         }
 
+        internal enum OriginKind
+        {
+            Fight,  // появляется в бою с другим существом или при его смерти (призыв, снаряды, эффекты смерти)
+            Breed,  // рождается у прирученных (Procreation)
+            Hatch,  // вылупляется из предмета-яйца (EggGrow)
+            GrowUp  // вырастает из детёныша (Growup)
+        }
+
+        internal sealed class Origin
+        {
+            public OriginKind Kind;
+            public string Source; // имя существа-источника или предмета-яйца
+        }
+
+        // существо → откуда оно берётся, если само в мире не спавнится
+        private static readonly Dictionary<string, List<Origin>> Origins = new Dictionary<string, List<Origin>>();
+
+        private static void AddOrigin(string child, OriginKind kind, string source)
+        {
+            if (string.IsNullOrEmpty(child) || string.IsNullOrEmpty(source) || child == source) return;
+            if (!Origins.TryGetValue(child, out List<Origin> list)) Origins[child] = list = new List<Origin>();
+            if (!list.Any(o => o.Kind == kind && o.Source == source)) list.Add(new Origin { Kind = kind, Source = source });
+        }
+
+        /// <summary>Существа, которых порождает префаб: призыв, снаряды, спавн при уроне, спавнеры внутри эффектов.</summary>
+        private static void CollectSpawned(GameObject go, int depth, HashSet<GameObject> seen, List<string> result)
+        {
+            if (go == null || depth > 3 || !seen.Add(go)) return;
+            if (depth > 0)
+            {
+                Character ch = go.GetComponent<Character>();
+                if (ch != null)
+                {
+                    if (!string.IsNullOrEmpty(ch.m_name)) result.Add(ch.m_name);
+                    return; // внутрь другого существа не идём
+                }
+            }
+            foreach (SpawnAbility sa in go.GetComponentsInChildren<SpawnAbility>(true))
+            {
+                if (sa.m_spawnPrefab == null) continue;
+                foreach (GameObject p in sa.m_spawnPrefab) CollectSpawned(p, depth + 1, seen, result);
+            }
+            foreach (Projectile pr in go.GetComponentsInChildren<Projectile>(true)) CollectSpawned(pr.m_spawnOnHit, depth + 1, seen, result);
+            foreach (SpawnOnDamaged sd in go.GetComponentsInChildren<SpawnOnDamaged>(true)) CollectSpawned(sd.m_spawnOnDamage, depth + 1, seen, result);
+            if (depth > 0)
+            {
+                foreach (CreatureSpawner cs in go.GetComponentsInChildren<CreatureSpawner>(true)) CollectSpawned(cs.m_creaturePrefab, depth + 1, seen, result);
+            }
+        }
+
+        private static void CollectAttack(Attack attack, HashSet<GameObject> seen, List<string> result)
+        {
+            if (attack == null) return;
+            CollectSpawned(attack.m_attackProjectile, 1, seen, result);
+            CollectSpawned(attack.m_spawnOnTrigger, 1, seen, result);
+        }
+
+        private static void BuildOrigins()
+        {
+            Origins.Clear();
+            foreach (GameObject prefab in ZNetScene.instance.m_prefabs)
+            {
+                Character ch = prefab != null ? prefab.GetComponent<Character>() : null;
+                if (ch == null || string.IsNullOrEmpty(ch.m_name)) continue;
+                try
+                {
+                    var seen = new HashSet<GameObject>();
+                    var spawned = new List<string>();
+                    CollectSpawned(prefab, 0, seen, spawned);
+                    if (ch.m_deathEffects?.m_effectPrefabs != null)
+                    {
+                        foreach (EffectList.EffectData e in ch.m_deathEffects.m_effectPrefabs) CollectSpawned(e?.m_prefab, 1, seen, spawned);
+                    }
+                    if (ch is Humanoid h)
+                    {
+                        var items = new List<GameObject>();
+                        if (h.m_defaultItems != null) items.AddRange(h.m_defaultItems);
+                        if (h.m_randomWeapon != null) items.AddRange(h.m_randomWeapon);
+                        if (h.m_randomArmor != null) items.AddRange(h.m_randomArmor);
+                        if (h.m_randomShield != null) items.AddRange(h.m_randomShield);
+                        if (h.m_randomSets != null) items.AddRange(h.m_randomSets.Where(s => s?.m_items != null).SelectMany(s => s.m_items));
+                        foreach (GameObject it in items)
+                        {
+                            ItemDrop.ItemData.SharedData sh = it != null ? it.GetComponent<ItemDrop>()?.m_itemData?.m_shared : null;
+                            if (sh == null) continue;
+                            CollectAttack(sh.m_attack, seen, spawned);
+                            CollectAttack(sh.m_secondaryAttack, seen, spawned);
+                        }
+                    }
+                    foreach (string child in spawned) AddOrigin(child, OriginKind.Fight, ch.m_name);
+
+                    Procreation pc = prefab.GetComponent<Procreation>();
+                    if (pc != null)
+                    {
+                        foreach (GameObject off in new[] { pc.m_offspring, pc.m_noPartnerOffspring })
+                        {
+                            Character oc = off != null ? off.GetComponent<Character>() : null;
+                            if (oc != null) AddOrigin(oc.m_name, OriginKind.Breed, ch.m_name);
+                        }
+                    }
+                    Growup gu = prefab.GetComponent<Growup>();
+                    Character adult = gu?.m_grownPrefab != null ? gu.m_grownPrefab.GetComponent<Character>() : null;
+                    if (adult != null) AddOrigin(adult.m_name, OriginKind.GrowUp, ch.m_name);
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.LogWarning($"Failed to read what {prefab.name} spawns: {e.Message}");
+                }
+            }
+
+            foreach (GameObject go in ObjectDB.instance.m_items)
+            {
+                EggGrow egg = go != null ? go.GetComponent<EggGrow>() : null;
+                Character hatch = egg?.m_grownPrefab != null ? egg.m_grownPrefab.GetComponent<Character>() : null;
+                ItemDrop id = go.GetComponent<ItemDrop>();
+                if (hatch != null && id != null) AddOrigin(hatch.m_name, OriginKind.Hatch, id.m_itemData.m_shared.m_name);
+            }
+        }
+
         /// <summary>Сырые данные спавна и то, как мод их понял — для achtracker dump.</summary>
         public static readonly List<string> SpawnDebug = new List<string>();
 
@@ -188,6 +310,15 @@ namespace AchievementTracker
         {
             EnsureBuilt();
             return SpawnDebug;
+        }
+
+        public static IEnumerable<string> OriginReport()
+        {
+            EnsureBuilt();
+            foreach (KeyValuePair<string, List<Origin>> kv in Origins.OrderBy(k => k.Key))
+            {
+                yield return $"{kv.Key} ({Names.L(kv.Key)}): " + string.Join("; ", kv.Value.Select(o => $"{o.Kind} <- {o.Source}"));
+            }
         }
 
         public static IEnumerable<KeyValuePair<string, Heightmap.Biome>> CreatureHomes()
@@ -351,34 +482,87 @@ namespace AchievementTracker
             }
         }
 
-        private static void CheckCreature(Player p, string creature, out Avail avail, out string reason)
+        private static void CheckCreature(Player p, string creature, out Avail avail, out string reason) =>
+            CheckCreature(p, creature, 0, out avail, out reason);
+
+        private static void CheckCreature(Player p, string creature, int depth, out Avail avail, out string reason)
         {
             avail = Avail.Available;
             reason = "";
-            bool boss = Bosses.Contains(creature);
+            // Алтарь (OfferingBowl) из скана локаций: этого босса призывают предметом
+            string altarItem = LocationScanner.AltarItem(creature);
+            bool boss = Bosses.Contains(creature) || altarItem != null;
             CreatureBiomes.TryGetValue(creature, out Heightmap.Biome wild);
-            // Подземелья и локации — из фонового скана префабов (LocationScanner)
-            List<Place> places = boss ? null : LocationScanner.Get(creature);
+            // Подземелья, локации и алтари — из фонового скана префабов (LocationScanner)
+            List<Place> places = LocationScanner.Get(creature);
+            string summon = altarItem == null ? "" :
+                Loc.S("призывается на алтаре предметом «", "summoned at the altar with \"") +
+                Regex.Replace(Names.L(altarItem), "<[^>]+>", "") + Loc.S("»", "\"");
             Heightmap.Biome all = wild | (places != null ? LocationScanner.Biomes(places) : Heightmap.Biome.None);
             if (all == Heightmap.Biome.None)
             {
+                // Сам не спавнится — ищем, из кого или из чего появляется (бой, разведение, яйцо, взросление)
+                if (depth < 3 && Origins.TryGetValue(creature, out List<Origin> origins) && origins.Count > 0)
+                {
+                    DescribeOrigins(p, origins, depth, out avail, out reason);
+                    return;
+                }
                 avail = Avail.Unknown;
                 reason = LocationScanner.Ready
-                    ? Loc.S("сам в мире не появляется: только из событий, призыва или разведения",
-                            "doesn't spawn in the world on its own: only from events, summoning or breeding")
+                    ? Loc.S("не встречается в мире сам по себе: появляется только при особых условиях (события)",
+                            "doesn't appear in the world on its own: only under special conditions (events)")
                     : Loc.S("ищу, где встречается (идёт поиск по локациям)…", "looking up where it lives (scanning locations)…");
                 return;
             }
 
-            string whereText = LocationScanner.Describe(wild, places, boss);
-
             if (IsBiomeKnown(p, all))
             {
-                reason = whereText;
+                string where = LocationScanner.Describe(wild, places, boss);
+                reason = string.Join("; ", new[] { where, summon }.Where(s => s.Length > 0));
                 return;
             }
+            // Биом ещё не открыт: пишем, какой открыть, и только конкретные названные места — без повтора того же биома
             avail = Avail.Locked;
-            reason = Loc.S("нужно открыть биом: ", "discover biome: ") + Names.Biomes(all) + " — " + whereText;
+            string named = LocationScanner.Describe(Heightmap.Biome.None, places, boss, skipUnnamed: all);
+            reason = Loc.S("нужно открыть биом: ", "discover biome: ") + Names.Biomes(all) +
+                     string.Concat(new[] { named, summon }.Where(s => s.Length > 0).Select(s => " — " + s));
+        }
+
+        private static void DescribeOrigins(Player p, List<Origin> origins, int depth, out Avail avail, out string reason)
+        {
+            avail = Avail.Unknown;
+            reason = "";
+            var texts = new List<string>();
+            bool anyAvailable = false, anyUnknown = false;
+            foreach (Origin o in origins)
+            {
+                Avail a;
+                string why;
+                string text;
+                if (o.Kind == OriginKind.Hatch)
+                {
+                    // Яйцо — предмет: доступно, если игрок его уже находил
+                    a = p.IsMaterialKnown(o.Source) ? Avail.Available : Avail.Unknown;
+                    text = Loc.S("вылупляется из предмета «", "hatches from \"") + Names.L(o.Source) + Loc.S("»", "\"");
+                }
+                else
+                {
+                    CheckCreature(p, o.Source, depth + 1, out a, out why);
+                    string src = Regex.Replace(Names.L(o.Source), "<[^>]+>", "");
+                    switch (o.Kind)
+                    {
+                        case OriginKind.Fight: text = Loc.S($"появляется в бою с «{src}»", $"appears in the fight with \"{src}\""); break;
+                        case OriginKind.Breed: text = Loc.S($"рождается у прирученных «{src}»", $"born to tamed \"{src}\""); break;
+                        default: text = Loc.S($"вырастает из «{src}»", $"grows up from \"{src}\""); break;
+                    }
+                    if (!string.IsNullOrEmpty(why)) text += " (" + why + ")";
+                }
+                texts.Add(text);
+                anyAvailable |= a == Avail.Available;
+                anyUnknown |= a == Avail.Unknown;
+            }
+            avail = anyAvailable ? Avail.Available : anyUnknown ? Avail.Unknown : Avail.Locked;
+            reason = string.Join("; ", texts.Distinct());
         }
 
         private static void CheckItemSource(Player p, string item, out Avail avail, out string reason)

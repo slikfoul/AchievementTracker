@@ -225,6 +225,16 @@ namespace AchievementTracker
                               string.Join("; ", kv.Value.Select(p => $"{p.Label ?? "-"} [{p.Biome}]")));
             }
             sb.AppendLine();
+            sb.AppendLine("== Creature origins (fight / breed / hatch / grow up) ==");
+            foreach (string line in Progression.OriginReport()) sb.AppendLine("  " + line);
+            sb.AppendLine();
+            sb.AppendLine("== Boss altars ==");
+            foreach (KeyValuePair<string, List<Place>> kv in LocationScanner.All())
+            {
+                string item = LocationScanner.AltarItem(kv.Key);
+                if (item != null) sb.AppendLine($"  {kv.Key} ({Names.L(kv.Key)}): {item} ({Names.L(item)})");
+            }
+            sb.AppendLine();
             sb.AppendLine("== Raw spawn data ==");
             foreach (string line in Progression.SpawnReport()) sb.AppendLine("  " + line);
             sb.AppendLine();

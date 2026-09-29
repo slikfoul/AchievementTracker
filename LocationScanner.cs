@@ -56,6 +56,12 @@ namespace AchievementTracker
 
         public static IEnumerable<KeyValuePair<string, List<Place>>> All() => Homes;
 
+        // Босс → предмет для призыва на алтаре (OfferingBowl в локации)
+        private static readonly Dictionary<string, string> Altars = new Dictionary<string, string>();
+
+        public static string AltarItem(string creature) =>
+            creature != null && Altars.TryGetValue(creature, out string item) ? item : null;
+
         /// <summary>Вызывается каждый кадр; запускает скан один раз на мир, если нет свежего кэша.</summary>
         public static void Tick(MonoBehaviour host)
         {
@@ -68,6 +74,7 @@ namespace AchievementTracker
                 s_for = ZoneSystem.instance;
                 Ready = false;
                 Homes.Clear();
+                Altars.Clear();
                 if (TryLoadCache())
                 {
                     Ready = true;
@@ -93,12 +100,13 @@ namespace AchievementTracker
             {
                 Ready = false;
                 Homes.Clear();
+                Altars.Clear();
                 s_for = null;
             }
         }
 
         private static string CacheKey() =>
-            $"v2|{(global::Version.GetVersionString())}|{ZoneSystem.instance.m_locations.Count}|{DungeonDB.GetRooms().Count}";
+            $"v3|{(global::Version.GetVersionString())}|{ZoneSystem.instance.m_locations.Count}|{DungeonDB.GetRooms().Count}";
 
         private static bool TryLoadCache()
         {
@@ -110,6 +118,11 @@ namespace AchievementTracker
                 foreach (string line in lines.Skip(1))
                 {
                     string[] p = line.Split('\t');
+                    if (p.Length == 3 && p[0] == "#altar")
+                    {
+                        Altars[p[1]] = p[2];
+                        continue;
+                    }
                     if (p.Length != 3 || !int.TryParse(p[2], out int biome)) continue;
                     Add(p[0], p[1].Length == 0 ? null : p[1], (Heightmap.Biome)biome);
                 }
@@ -120,6 +133,7 @@ namespace AchievementTracker
             {
                 Plugin.Log.LogWarning("Location cache unreadable, rescanning: " + e.Message);
                 Homes.Clear();
+                Altars.Clear();
                 return false;
             }
         }
@@ -134,6 +148,7 @@ namespace AchievementTracker
                 {
                     foreach (Place p in kv.Value) sb.AppendLine($"{kv.Key}\t{p.Label ?? ""}\t{(int)p.Biome}");
                 }
+                foreach (KeyValuePair<string, string> kv in Altars) sb.AppendLine($"#altar\t{kv.Key}\t{kv.Value}");
                 Directory.CreateDirectory(BepInEx.Paths.CachePath);
                 File.WriteAllText(CacheFile, sb.ToString(), new UTF8Encoding(false));
             }
@@ -279,6 +294,18 @@ namespace AchievementTracker
             var place = new Place { Label = label, Biome = zl.m_biome };
             List<string> creatures = CreaturesIn(go).Concat(CreaturesIn(interior)).Distinct().ToList();
             foreach (string c in creatures) Add(c, place.Label, place.Biome);
+            // Алтари боссов: какой босс призывается здесь и каким предметом
+            var bowls = go.GetComponentsInChildren<OfferingBowl>(true).ToList();
+            if (interior != null) bowls.AddRange(interior.GetComponentsInChildren<OfferingBowl>(true));
+            foreach (OfferingBowl ob in bowls)
+            {
+                Character boss = ob.m_bossPrefab != null ? ob.m_bossPrefab.GetComponent<Character>() : null;
+                if (boss == null || string.IsNullOrEmpty(boss.m_name)) continue;
+                Add(boss.m_name, place.Label, place.Biome);
+                creatures.Add(boss.m_name);
+                string item = ob.m_bossItem != null ? ob.m_bossItem.m_itemData.m_shared.m_name : null;
+                if (!string.IsNullOrEmpty(item)) Altars[boss.m_name] = item;
+            }
             foreach (Room.Theme t in Flags(themes))
             {
                 if (!themePlaces.TryGetValue(t, out List<Place> list)) themePlaces[t] = list = new List<Place>();
@@ -315,7 +342,7 @@ namespace AchievementTracker
         /// Где встречается существо, без повторов: «водится: …; в локациях: «Затонувшие склепы» (Болото); в локациях биома «Горы»».
         /// Безымянные локации в биомах, где существо и так водится или уже назван конкретное место, не упоминаем.
         /// </summary>
-        public static string Describe(Heightmap.Biome wild, List<Place> places, bool boss)
+        public static string Describe(Heightmap.Biome wild, List<Place> places, bool boss, Heightmap.Biome skipUnnamed = Heightmap.Biome.None)
         {
             var parts = new List<string>();
             if (wild != Heightmap.Biome.None)
@@ -336,7 +363,7 @@ namespace AchievementTracker
             if (named.Count > 0) parts.Add(Loc.S("в локациях: ", "in locations: ") + string.Join(", ", named));
 
             Heightmap.Biome unnamed = places.Where(p => p.Label == null).Aggregate(Heightmap.Biome.None, (acc, p) => acc | p.Biome);
-            unnamed &= ~(wild | namedBiomes);
+            unnamed &= ~(wild | namedBiomes | skipUnnamed);
             if (unnamed != Heightmap.Biome.None)
             {
                 int count = Names.Split(unnamed).Count();
