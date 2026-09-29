@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using UnityEngine;
 
 namespace AchievementTracker
 {
@@ -279,10 +280,127 @@ namespace AchievementTracker
             },
         };
 
+        // Как засчитывается убийство — общее для всех достижений «убей» (Character.OnDeath / Character.Damage)
+        private static readonly string[] KillCredit =
+        {
+            "Убийство засчитывается всем игрокам, которые хоть раз сами ранили существо (оружием, стрелами, магией) и были в игре в момент его смерти — добивать не обязательно. Урон от прирученных и призванных существ не в счёт.",
+            "A kill counts for every player who damaged the creature themselves at least once (weapons, arrows, magic) and was in the game when it died — the last hit isn't required. Damage from tamed or summoned creatures doesn't count."
+        };
+
+        private static readonly string[] Foundation =
+        {
+            "луч от детали вниз (до 200 м) должен пройти минимум через {cfg:foundationPieces} построек, и больше {cfg:foundationPercent}% из них должны быть поставлены тобой; земля и скалы постройками не считаются",
+            "a line straight down from the piece (up to 200 m) has to pass through at least {cfg:foundationPieces} build pieces, and more than {cfg:foundationPercent}% of them have to be placed by you; terrain and rock don't count as pieces"
+        };
+
+        private static readonly string[] Cluster =
+        {
+            "Считаются все твои постройки в загруженной области вокруг тебя, а не одно здание, — по категориям, и для каждой категории запоминается лучший результат. Проверка мягкая: каждая категория засчитывается не больше чем на 115% своей нормы, а сумма должна превысить сумму норм, так что перебор в одних категориях покрывает небольшой недобор в других (прогресс в этом окне считается так же). Пересчёт идёт не после каждой детали, а примерно раз в 20 поставленных деталей и при входе в игру — если всё уже стоит, поставь ещё пару десятков деталей.",
+            "All your pieces in the loaded area around you count, not a single building — per category, and the best result for each category is remembered. The check is lenient: each category counts up to 115% of its target and the total has to exceed the sum of targets, so extra pieces in some categories cover a small shortfall in others (progress in this window uses the same rule). It's rechecked not after every piece but about every 20 pieces you place and when you log in — if everything is already built, place a couple dozen more pieces."
+        };
+
+        // «Как игра это проверяет» — точные правила из кода игры для неочевидных достижений: { ru, en }
+        private static readonly Dictionary<string, string[]> Rules = new Dictionary<string, string[]>
+        {
+            ["BuildHigh"] = new[]
+            {
+                "Высота — это расстояние от детали до земли прямо под ней: игра меряет лучом вниз, но не дальше 200 м (если земли в пределах 200 м нет, высота не засчитается). Кроме того, деталь должна стоять на твоём фундаменте: " + Foundation[0] + ". Засчитывается рекорд.",
+                "Height is the distance from the piece down to the terrain directly below it: the game measures it with a line straight down, but no further than 200 m (no terrain within 200 m means no reading). The piece also has to sit on your own foundation: " + Foundation[1] + ". Your record counts."
+            },
+            ["BuildHighWorld"] = new[]
+            {
+                "Берётся абсолютная высота детали (уровень моря — 30), она должна быть больше 432; внутри подземелий не считается. Нужен и твой фундамент: " + Foundation[0] + ". Поэтому одна деталь на вершине горы не сработает — поставь на вершине столб минимум из {cfg:foundationPieces} своих деталей, а последнюю — выше 432.",
+                "The piece's world height is used (sea level is 30) and must be above 432; inside dungeons doesn't count. It also has to sit on your own foundation: " + Foundation[1] + ". So a single piece on a mountain peak won't work — build a column of at least {cfg:foundationPieces} of your own pieces on the peak and place the last one above 432."
+            },
+            ["BuildHouse"] = Cluster,
+            ["BuildVillage"] = Cluster,
+            ["GrindDays"] = new[]
+            {
+                "День засчитывается в момент наступления утра, когда появляется надпись о новом дне, — если ты в этот момент в игре и жив (сон до утра тоже подходит). Пока тебя нет в игре, дни для тебя не идут. Смерть обнуляет счётчик, в достижение идёт лучший результат.",
+                "A day counts at the moment morning comes and the new-day message appears — if you're in the game and alive at that moment (sleeping through the night works too). Days don't count for you while you're offline. Death resets the counter; your best streak counts."
+            },
+            ["GrindComfort"] = new[]
+            {
+                "Комфорт проверяется каждые 2 секунды там, где ты стоишь, и запоминается рекорд. Базовое значение — 1, укрытие даёт +1, а предметы комфорта в радиусе 10 м учитываются только когда ты под крышей. Из каждой группы (огонь, кровать, сиденья и т.п.) засчитывается лучший предмет, одинаковые предметы не складываются.",
+                "Comfort is checked every 2 seconds where you stand, and your record is kept. The base is 1, shelter adds 1, and comfort pieces within 10 m only count while you're sheltered. Only the best piece from each group (fire, bed, seating and so on) counts, and identical pieces don't stack."
+            },
+            ["AllBosses"] = KillCredit,
+            ["AllBossesHard"] = KillCredit,
+            ["AllBossesNormal"] = KillCredit,
+            ["AllMiniBosses"] = KillCredit,
+            ["KillAllCreatures"] = KillCredit,
+            ["KillAllCreaturesHard"] = KillCredit,
+            ["SoloBoss"] = new[]
+            {
+                KillCredit[0] + " «В одиночку» — значит, урон боссу нанёс ровно один игрок.",
+                KillCredit[1] + " \"All by yourself\" means exactly one player damaged the boss."
+            },
+            ["MultiplayerBoss"] = new[]
+            {
+                KillCredit[0] + " «Вместе» — значит, урон боссу нанесли хотя бы двое игроков.",
+                KillCredit[1] + " \"Together\" means at least two players damaged the boss."
+            },
+            ["GrindTrees"] = new[]
+            {
+                "Дерево засчитывается тому, чей удар его свалил: если последним ударил друг, дерево пойдёт ему.",
+                "A tree counts for whoever landed the hit that felled it: if a friend hits last, it goes to them."
+            },
+            ["GrindTreasure"] = new[]
+            {
+                "Сундук засчитывается, когда ты впервые открываешь его сам, — каждому игроку отдельно.",
+                "A chest counts the first time you open it yourself — separately for each player."
+            },
+            ["GrindLeviathan"] = new[]
+            {
+                "Засчитывается всем игрокам рядом, когда существо уходит под воду, — не только тому, кто бил киркой.",
+                "It counts for every player nearby when the creature dives — not only for the one who mined it."
+            },
+            ["GrindSail"] = new[]
+            {
+                "Считается расстояние, пройденное, пока ты на борту корабля, в том числе пассажиром.",
+                "Distance counts while you're aboard a ship, including as a passenger."
+            },
+            ["GrindSailHelm"] = new[]
+            {
+                "Считается только расстояние, пройденное, пока ты сам управляешь кораблём за штурвалом.",
+                "Only distance covered while you're steering the ship at the helm counts."
+            },
+            ["BigFish"] = new[]
+            {
+                "Качество — это цифра на иконке пойманной рыбы; нужна рыба качества 4. Засчитывается только улов на удочку.",
+                "Quality is the number on the caught fish's icon; you need a quality 4 fish. Only fish caught with a rod count."
+            },
+            ["AllItemCraft"] = new[]
+            {
+                "В список входят только предметы, для крафта которых нужна станция (верстак, кузница и т.п.); то, что делается без станции, не входит. Улучшение уже созданного предмета не считается.",
+                "Only items whose recipe needs a crafting station (workbench, forge and so on) are on the list; things made without a station aren't. Upgrading an item you already made doesn't count."
+            },
+            ["FindAllTrophies"] = new[]
+            {
+                "Трофей засчитывается, когда впервые попадает в твой инвентарь, — подойдёт и трофей из сундука, который туда положил кто-то другой.",
+                "A trophy counts the first time it enters your inventory — even one taken from a chest where someone else put it."
+            },
+            ["ExploreNSEW"] = new[]
+            {
+                "Засчитывается время, проведённое за границей: достаточно пробыть там хотя бы секунду.",
+                "Time spent past the line counts: staying there for at least a second is enough."
+            },
+            ["ExploreNSEWNoMap"] = new[]
+            {
+                "Засчитывается время, проведённое за границей: достаточно пробыть там хотя бы секунду.",
+                "Time spent past the line counts: staying there for at least a second is enough."
+            },
+        };
+
         public static string Get(AchState st)
         {
-            if (Texts.TryGetValue(st.Ach.m_id, out string[] t)) return Fill(Loc.S(t[0], t[1]));
-            return Generic(st);
+            if (!Texts.TryGetValue(st.Ach.m_id, out string[] t)) return Generic(st);
+            string text = Fill(Loc.S(t[0], t[1]));
+            if (Rules.TryGetValue(st.Ach.m_id, out string[] r))
+            {
+                text += "\n\n" + $"<color=#{UiKit.Hex(UiKit.Beige)}><b>{Loc.S("Как игра это проверяет:", "How the game checks it:")}</b></color> " + Fill(Loc.S(r[0], r[1]));
+            }
+            return text;
         }
 
         /// <summary>
@@ -290,10 +408,22 @@ namespace AchievementTracker
         /// Так имена совпадают с тем, что игрок видит в игре, на любом языке. Цветовые теги из локализации убираем.
         /// </summary>
         private static string Fill(string text) =>
-            Regex.Replace(text, @"\{(ach:(?<id>\w+)|(?<tok>\$[A-Za-z0-9_]+))\}", m =>
-                m.Groups["id"].Success
-                    ? Names.Achievement(Analyzer.Find(m.Groups["id"].Value))
-                    : Regex.Replace(Names.L(m.Groups["tok"].Value), "<[^>]+>", ""));
+            Regex.Replace(text, @"\{(ach:(?<id>\w+)|cfg:(?<cfg>\w+)|(?<tok>\$[A-Za-z0-9_]+))\}", m =>
+                m.Groups["id"].Success ? Names.Achievement(Analyzer.Find(m.Groups["id"].Value))
+                : m.Groups["cfg"].Success ? GameValue(m.Groups["cfg"].Value)
+                : Regex.Replace(Names.L(m.Groups["tok"].Value), "<[^>]+>", ""));
+
+        /// <summary>{cfg:…} — числа, которые игра реально использует (могут отличаться от значений по умолчанию в коде).</summary>
+        private static string GameValue(string key)
+        {
+            Achievements a = Achievements.m_instance;
+            switch (key)
+            {
+                case "foundationPieces": return a != null ? a.m_buildFoundationMinPieces.ToString() : "5";
+                case "foundationPercent": return a != null ? Mathf.RoundToInt(a.m_buildFoundationMinCreatorPercent * 100f).ToString() : "45";
+                default: return key;
+            }
+        }
 
         /// <summary>Для достижений, которых нет в списке (новые версии игры, моды) — пояснение по типам условий.</summary>
         private static string Generic(AchState st)

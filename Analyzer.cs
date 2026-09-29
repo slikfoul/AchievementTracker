@@ -76,6 +76,9 @@ namespace AchievementTracker
     {
         private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 
+        /// <summary>Во сколько раз больше нормы засчитывается категория в мягкой проверке построек (из кода игры).</summary>
+        public const float LenientCap = 1.15f;
+
         public static bool Ready =>
             Achievements.m_instance != null && Game.instance != null && Game.instance.GetPlayerProfile() != null;
 
@@ -232,6 +235,24 @@ namespace AchievementTracker
                 st.ProgressText = st.MetCount + " / " + total;
             }
             st.Fraction = total == 0 ? (a.m_unlocked ? 1f : 0f) : fracSum / total;
+
+            // «Дом», «Деревня»: мягкая проверка игры (Piece.CheckLenientBuildAchUnlocked) — каждая категория
+            // засчитывается до 115% нормы, а сумма должна превысить сумму норм. Показываем прогресс так же.
+            if (a.m_lenientBuildAchievement)
+            {
+                float need = 0f, have = 0f;
+                foreach (ReqState rs in st.Reqs)
+                {
+                    if (rs.Req.Kind != ReqKind.Stat) continue;
+                    need += rs.Req.Target;
+                    have += Math.Min(rs.Current, rs.Req.Target * LenientCap);
+                }
+                if (need > 0f)
+                {
+                    st.ProgressText = Num(Math.Min(have, need)) + " / " + Num(need);
+                    st.Fraction = Math.Min(1f, have / need);
+                }
+            }
 
             if (a.m_unlocked)
             {
