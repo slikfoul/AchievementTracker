@@ -32,6 +32,7 @@ All settings are in the Configuration Manager and are translated to the selected
 | General | Language (Game / English / Russian) | Game |
 | General | Achievement names (Game / English / Russian / Both) | Game |
 | General | Window key | F7 |
+| General | Window font size | 15 |
 | General | Reveal secret achievements | On |
 | General | Stars on what you still need | Off |
 | Progress popups | For all achievements (otherwise only tracked) | On |
@@ -82,6 +83,7 @@ All settings are in the Configuration Manager and are translated to the selected
 | Общие | Язык (Game / English / Russian) | Game |
 | Общие | Названия достижений (Game / English / Russian / Both) | Game |
 | Общие | Клавиша окна | F7 |
+| Общие | Размер шрифта окна | 15 |
 | Общие | Показывать секретные | Вкл |
 | Общие | Звёздочки у несделанного | Выкл |
 | Всплывающие счётчики | Для всех достижений (иначе — только для отслеживаемых) | Вкл |
