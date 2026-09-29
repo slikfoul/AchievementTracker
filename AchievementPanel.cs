@@ -13,7 +13,7 @@ namespace AchievementTracker
         private enum Filter { Available, Partial, Locked, Done, Tracked, All }
 
         private static string[] FilterNames => Loc.Ru
-            ? new[] { "Можно выполнить", "Частично", "Закрыто", "Выполнено", "Отслеживается", "Все" }
+            ? new[] { "Можно выполнить", "Частично", "Недоступно", "Выполнено", "Отслеживается", "Все" }
             : new[] { "Doable now", "Partly", "Locked", "Completed", "Tracked", "All" };
 
         // Минимум — чтобы помещался ряд кнопок фильтров
@@ -151,7 +151,7 @@ namespace AchievementTracker
 
             s_filterButtons = new Button[FilterNames.Length];
             // Ширина под длину подписи вместе со счётчиком «(12)»; ряд держится по центру
-            float[] widths = { 200f, 130f, 125f, 140f, 185f, 100f };
+            float[] widths = { 200f, 130f, 145f, 140f, 185f, 100f };
             float gap = 8f;
             float x = -(widths.Sum() + gap * (FilterNames.Length - 1)) / 2f;
             for (int i = 0; i < FilterNames.Length; i++)
@@ -234,7 +234,7 @@ namespace AchievementTracker
             s_summary.text = $"{Loc.S("Выполнено", "Completed")} <color=#{UiKit.Hex(UiKit.Green)}>{done}</color> {Loc.S("из", "of")} {total}   ·   " +
                              $"{Loc.S("можно выполнить", "doable now")} <color=#{UiKit.Hex(UiKit.Yellow)}>{avail}</color>   ·   " +
                              $"{Loc.S("частично", "partly")} <color=#{UiKit.Hex(UiKit.Orange)}>{partial}</color>   ·   " +
-                             $"{Loc.S("закрыто", "locked")} <color=#{UiKit.Hex(UiKit.Grey)}>{locked}</color>";
+                             $"{Loc.S("недоступно", "locked")} <color=#{UiKit.Hex(UiKit.Grey)}>{locked}</color>";
 
             int[] counts = { avail, partial, locked, done, tracked.Count, total };
             for (int i = 0; i < s_filterButtons.Length; i++)
