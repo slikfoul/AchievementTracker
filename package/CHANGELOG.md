@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Fish requirements are now labeled "Catch" instead of "Pick".
+- README: added screenshots, English only.
+
 ## 1.0.0
 
 - First public release.
