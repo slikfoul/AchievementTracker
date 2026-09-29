@@ -107,7 +107,9 @@ namespace AchievementTracker
                 case ReqKind.ItemPickup: return Loc.S("Найти: ", "Find: ") + L(r.Key);
                 case ReqKind.ItemCraft: return Loc.S("Создать: ", "Craft: ") + L(r.Key);
                 case ReqKind.FoodEaten: return Loc.S("Съесть: ", "Eat: ") + L(r.Key);
-                case ReqKind.Pickable: return Loc.S("Собрать: ", "Pick: ") + L(PickableItem(r.Key));
+                case ReqKind.Pickable:
+                    string item = PickableItem(r.Key);
+                    return (IsFish(item) ? Loc.S("Поймать: ", "Catch: ") : Loc.S("Собрать: ", "Pick: ")) + L(item);
                 case ReqKind.PiecePlaced: return Loc.S("Построить: ", "Build: ") + L(r.Key);
                 case ReqKind.KnownWorld: return Loc.S("Мир: ", "World: ") + r.Key;
                 case ReqKind.KnownWorldKey: return Loc.S("Событие мира: ", "World event: ") + r.Key;
@@ -143,6 +145,20 @@ namespace AchievementTracker
                 case KillModifiers.Melee: return Loc.S(" (в ближнем бою)", " (melee)");
                 default: return "";
             }
+        }
+
+        private static readonly Dictionary<string, bool> FishCache = new Dictionary<string, bool>();
+
+        /// <summary>Рыба ли это: у предметов-рыб в игре есть компонент Fish.</summary>
+        public static bool IsFish(string sharedName)
+        {
+            if (string.IsNullOrEmpty(sharedName) || ObjectDB.instance == null) return false;
+            if (FishCache.TryGetValue(sharedName, out bool cached)) return cached;
+            bool fish = ObjectDB.instance.m_items.Any(go =>
+                go != null && go.GetComponent<Fish>() != null &&
+                go.GetComponent<ItemDrop>()?.m_itemData?.m_shared?.m_name == sharedName);
+            FishCache[sharedName] = fish;
+            return fish;
         }
 
         /// <summary>Ключ сбора бывает и именем префаба (Raspberry), и готовым токеном ($animal_fish1).</summary>
