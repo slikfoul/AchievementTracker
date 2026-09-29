@@ -68,7 +68,7 @@ namespace AchievementTracker
             {
                 case AchStatus.Done: return Loc.S("Выполнено", "Completed");
                 case AchStatus.Available: return Loc.S("Можно выполнить", "Doable now");
-                case AchStatus.Partial: return Loc.S("Частично доступно", "Partly doable");
+                case AchStatus.Partial: return Loc.S("Частично выполнимо", "Partly doable");
                 default: return Loc.S("Пока недоступно", "Not yet available");
             }
         }
