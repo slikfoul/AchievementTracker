@@ -46,6 +46,7 @@ All settings are in the Configuration Manager and are translated to the selected
 
 - This mod was made with the help of AI (Claude) and tested in game by the author.
 - It reads the game's data at runtime and does not ship any game assets.
+- Source code: [github.com/slikfoul/AchievementTracker](https://github.com/slikfoul/AchievementTracker) (MIT license).
 
 ---
 
@@ -95,3 +96,4 @@ All settings are in the Configuration Manager and are translated to the selected
 
 - Мод сделан с помощью ИИ (Claude) и проверен автором в игре.
 - Мод читает данные игры во время работы и не содержит ресурсов игры.
+- Исходный код: [github.com/slikfoul/AchievementTracker](https://github.com/slikfoul/AchievementTracker) (лицензия MIT).

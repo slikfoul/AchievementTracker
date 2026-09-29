@@ -1,7 +1,7 @@
 {
   "name": "AchievementTracker",
   "version_number": "1.0.0",
-  "website_url": "",
+  "website_url": "https://github.com/slikfoul/AchievementTracker",
   "description": "Achievement window (F7): what you can do now and what's missing, full requirements with guides, on-screen tracking, progress popups and stars on items still needed. English and Russian.",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2351",

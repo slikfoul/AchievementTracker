@@ -19,3 +19,7 @@ The Thunderstore package is `package/` (manifest, README, CHANGELOG, icon) plus 
 ## Notes
 
 Made with the help of AI (Claude) and tested in game by the author.
+
+## License
+
+[MIT](LICENSE) © 2026 Slikfoul
