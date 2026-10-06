@@ -6,7 +6,7 @@
     <RootNamespace>AchievementTracker</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
@@ -41,10 +41,9 @@
     <Reference Include="Jotunn"><HintPath>$(JotunnDll)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
-  <!-- После сборки кладём dll прямо в профиль Thunderstore Mod Manager -->
+  <!-- Обновляем DLL, описание пакета и запись версии в профиле менеджера. -->
   <Target Name="DeployToProfile" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
-    <MakeDir Directories="$(ModProfile)\BepInEx\plugins\Slikfoul-AchievementTracker" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModProfile)\BepInEx\plugins\Slikfoul-AchievementTracker" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\DeployProfile.ps1&quot; -Profile &quot;$(ModProfile)&quot; -Package &quot;$(MSBuildProjectDirectory)\package&quot; -Dll &quot;$(TargetPath)&quot;" />
   </Target>
 
 </Project>

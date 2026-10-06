@@ -30,6 +30,11 @@ namespace AchievementTracker
         private static RectTransform s_root;
         private static RectTransform s_pinned;
         private static RectTransform s_toasts;
+        private static RectTransform s_skillSection;
+        private static Text s_achievementHeader;
+        private static Player s_player;
+        private static float s_nextSkillRefresh;
+        private static readonly Dictionary<Skills.SkillType, PinnedRow> SkillRows = new Dictionary<Skills.SkillType, PinnedRow>();
         private static readonly List<Toast> Toasts = new List<Toast>();
         private static readonly Dictionary<string, PinnedRow> Rows = new Dictionary<string, PinnedRow>();
         private static bool s_dirty = true;
@@ -37,13 +42,17 @@ namespace AchievementTracker
 
         public static void MarkDirty() => s_dirty = true;
 
+        public static void MarkSkillsDirty() => s_nextSkillRefresh = 0f;
+
         /// <summary>Язык сменился — пересоздаём HUD при следующем кадре.</summary>
         public static void Rebuild()
         {
             if (s_root != null) Object.Destroy(s_root.gameObject);
             s_root = null;
             Rows.Clear();
+            SkillRows.Clear();
             Toasts.Clear();
+            s_nextSkillRefresh = 0f;
             s_dirty = true;
         }
 
@@ -52,7 +61,9 @@ namespace AchievementTracker
             if (s_root != null) return true;
             if (Hud.instance == null || Hud.instance.m_rootObject == null) return false;
             Rows.Clear();
+            SkillRows.Clear();
             Toasts.Clear();
+            s_nextSkillRefresh = 0f;
 
             s_root = UiKit.Stretch(UiKit.Rect("AchievementTrackerHud", Hud.instance.m_rootObject.transform));
 
@@ -69,8 +80,16 @@ namespace AchievementTracker
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
             s_pinned.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            Text header = UiKit.Label(s_pinned, Loc.S("Отслеживаемые достижения", "Tracked achievements"), 14, UiKit.Orange, TextAnchor.MiddleLeft, title: true);
-            header.gameObject.AddComponent<LayoutElement>().preferredHeight = 18f;
+            s_achievementHeader = UiKit.Label(s_pinned, Loc.S("Отслеживаемые достижения", "Tracked achievements"), 14, UiKit.Orange, TextAnchor.MiddleLeft, title: true);
+            s_achievementHeader.gameObject.AddComponent<LayoutElement>().preferredHeight = 18f;
+            s_skillSection = UiKit.Rect("Skills", s_pinned);
+            VerticalLayoutGroup sv = s_skillSection.gameObject.AddComponent<VerticalLayoutGroup>();
+            sv.spacing = 5f;
+            sv.childControlWidth = sv.childControlHeight = true;
+            sv.childForceExpandWidth = true;
+            sv.childForceExpandHeight = false;
+            Text skillHeader = UiKit.Label(s_skillSection, Loc.S("Отслеживаемые навыки", "Tracked skills"), 14, UiKit.Orange, TextAnchor.MiddleLeft, title: true);
+            skillHeader.gameObject.AddComponent<LayoutElement>().preferredHeight = 18f;
 
             s_toasts = UiKit.Rect("Toasts", s_root);
             s_toasts.anchorMin = s_toasts.anchorMax = new Vector2(0.5f, 1f);
@@ -107,13 +126,27 @@ namespace AchievementTracker
 
         public static void Tick()
         {
-            if (Player.m_localPlayer == null || !Analyzer.Ready)
+            if (Player.m_localPlayer == null)
             {
                 return;
             }
             if (!EnsureBuilt()) return;
+            if (s_player != Player.m_localPlayer)
+            {
+                s_player = Player.m_localPlayer;
+                DoneSince.Clear();
+                s_dirty = true;
+                s_nextSkillRefresh = 0f;
+            }
 
             UpdateToasts();
+            // Читаем только навыки выбранного персонажа. Обновление опыта не требует
+            // пересчёта условий достижений или сканирования мира.
+            if (Time.time >= s_nextSkillRefresh)
+            {
+                s_nextSkillRefresh = Time.time + 1f;
+                RefreshSkills();
+            }
 
             if (Time.time >= s_nextRefresh || s_dirty)
             {
@@ -154,11 +187,11 @@ namespace AchievementTracker
 
         private static void RefreshPinned()
         {
-            AutoUntrackCompleted();
-            List<Achievement> achs = Plugin.HudEnabled.Value
+            if (Analyzer.Ready) AutoUntrackCompleted();
+            List<Achievement> achs = Plugin.HudEnabled.Value && Analyzer.Ready
                 ? Tracked.Ids().Select(Analyzer.Find).Where(a => a != null).ToList()
                 : new List<Achievement>();
-            s_pinned.gameObject.SetActive(achs.Count > 0);
+            s_achievementHeader.gameObject.SetActive(achs.Count > 0);
 
             foreach (string id in Rows.Keys.ToList())
             {
@@ -177,7 +210,65 @@ namespace AchievementTracker
                 row.Sub.text = SubLine(st);
                 row.Sub.gameObject.SetActive(!string.IsNullOrEmpty(row.Sub.text));
                 UiKit.SetFill(row.Fill, st.Fraction, c);
+                row.Rt.SetSiblingIndex(1 + achs.IndexOf(a));
             }
+            s_skillSection.SetAsLastSibling();
+            UpdatePinnedVisibility();
+        }
+
+        private static void RefreshSkills()
+        {
+            Player player = Player.m_localPlayer;
+            Skills skills = player.GetSkills();
+            var ids = Plugin.HudEnabled.Value
+                ? TrackedSkills.Ids().ToList()
+                : new List<Skills.SkillType>();
+            // GetSkillList только читает данные; GetSkillLevel для отсутствующего навыка
+            // создаёт его, поэтому для сброшенного навыка берём нулевой уровень сами.
+            List<Skills.Skill> values = ids.Count > 0 ? skills.GetSkillList() : new List<Skills.Skill>();
+            foreach (Skills.SkillType type in SkillRows.Keys.ToList())
+            {
+                if (ids.Contains(type)) continue;
+                Object.Destroy(SkillRows[type].Rt.gameObject);
+                SkillRows.Remove(type);
+            }
+            int index = 1;
+            foreach (Skills.SkillType type in ids)
+            {
+                Skills.Skill value = values.FirstOrDefault(s => s?.m_info?.m_skill == type);
+                if (value == null && !skills.m_skills.Any(def => def != null && def.m_skill == type))
+                {
+                    if (SkillRows.TryGetValue(type, out PinnedRow missing))
+                    {
+                        Object.Destroy(missing.Rt.gameObject);
+                        SkillRows.Remove(type);
+                    }
+                    continue;
+                }
+                if (!SkillRows.TryGetValue(type, out PinnedRow row))
+                    SkillRows[type] = row = CreateRow(s_skillSection);
+                int level = Mathf.Clamp(Mathf.FloorToInt(value?.m_level ?? 0f), 0, 100);
+                int effective = value != null ? Mathf.FloorToInt(skills.GetSkillLevel(type)) : level;
+                int bonus = effective - level;
+                string extra = bonus != 0 ? (bonus > 0 ? " (+" : " (") + bonus + ")" : "";
+                row.Title.text = TrackedSkills.Name(type) + "  <color=#" + UiKit.Hex(UiKit.Yellow) + ">" +
+                    Loc.S("уровень ", "level ") + level + extra + "</color>";
+                float fraction = level >= 100 ? 1f : value?.GetLevelPercentage() ?? 0f;
+                int percent = Mathf.Clamp(Mathf.FloorToInt(fraction * 100f), 0, 99);
+                row.Sub.text = level >= 100
+                    ? Loc.S("Максимальный уровень", "Maximum level")
+                    : Loc.S("Прогресс до уровня " + (level + 1) + ": " + percent + "%", "Progress to level " + (level + 1) + ": " + percent + "%");
+                row.Sub.gameObject.SetActive(true);
+                UiKit.SetFill(row.Fill, fraction, level >= 100 ? UiKit.Green : UiKit.Orange);
+                row.Rt.SetSiblingIndex(index++);
+            }
+            UpdatePinnedVisibility();
+        }
+
+        private static void UpdatePinnedVisibility()
+        {
+            s_skillSection.gameObject.SetActive(SkillRows.Count > 0);
+            s_pinned.gameObject.SetActive(Plugin.HudEnabled.Value && (Rows.Count > 0 || SkillRows.Count > 0));
         }
 
         /// <summary>Под достижением — условия, которые можно выполнить прямо сейчас (не больше ListLength).</summary>
@@ -224,10 +315,10 @@ namespace AchievementTracker
         private static bool IsExplore(ReqState r) =>
             r.Req.Kind == ReqKind.Stat && r.Req.Key.StartsWith("Explore") && !string.IsNullOrEmpty(r.Reason);
 
-        private static PinnedRow CreateRow()
+        private static PinnedRow CreateRow(RectTransform parent = null)
         {
             var row = new PinnedRow();
-            row.Rt = UiKit.Rect("Row", s_pinned);
+            row.Rt = UiKit.Rect("Row", parent != null ? parent : s_pinned);
             VerticalLayoutGroup v = row.Rt.gameObject.AddComponent<VerticalLayoutGroup>();
             v.spacing = 2f;
             v.childControlWidth = true;

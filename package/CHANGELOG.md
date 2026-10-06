@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+- Added skill tracking: Alt + left-click a skill in the game's Skills window, or click its checkbox in the left margin, to track or untrack it.
+- Tracked skills show their current level, temporary bonuses and live progress toward the next level in the on-screen tracker.
+- Skill selection is saved per character and survives death, skill resets and level 100; skill values are read directly from the game.
+- Added English and Russian skill tracking labels and tooltips.
+- Skill progress refreshes once per second; tracking selections update immediately.
+- Supports skill lists without a separate ScrollRect viewport; Alt-click targets initialize independently of the checkbox layout.
+
 ## 1.0.1
 
 - Fish requirements are now labeled "Catch" instead of "Pick".

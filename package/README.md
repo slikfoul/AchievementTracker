@@ -25,6 +25,7 @@ Client-side helper for Valheim's built-in achievements. See what you can complet
 - **"How to get it" guide** for every achievement. Names of bosses, items, biomes and places are taken from the game's own localization, so they match what you see in game.
 - **Where creatures live:** spawn biomes plus dungeons and locations (e.g. *Sunken Crypts (Swamp)*). Dungeons are scanned once in the background on the first world load and cached until the game updates.
 - **On-screen tracking:** tracked achievements stay on screen with a list of requirements you can complete right now. Completed ones untrack themselves after 10 seconds.
+- **Skill tracking:** open the game\'s Skills window and Alt + left-click a skill, or use its checkbox in the left margin. Selected skills appear in the on-screen tracker with their current level, temporary level bonuses and a live progress bar to the next level. Click again to stop tracking. The selection is saved per character and stays tracked at level 100.
 - **Progress popups:** e.g. *The Lumberjack 132 / 500* when you fell a tree.
 - **Stars on what you still need** (optional): unbuilt pieces in the build menu, uncrafted items at crafting stations, and in your inventory and chests — trophies not picked up yet, food not eaten yet, fish not caught yet, raw ingredients for dishes not cooked yet and seeds for plantings not made yet. **Hold Alt** over a starred item to see which achievements need it.
 - **English and Russian** interface. Achievement names can be shown in the game's language, English, Russian or both.

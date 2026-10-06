@@ -61,7 +61,6 @@ namespace AchievementTracker
             try
             {
                 table = Load(language);
-                Plugin.Log.LogInfo($"Loaded {table.Count} game strings for {language}");
             }
             catch (Exception e)
             {

@@ -196,7 +196,6 @@ namespace AchievementTracker
                 s_listScroll.scrollSensitivity = native;
                 s_detailsScroll.scrollSensitivity = native;
             }
-            Plugin.Log.LogInfo(s_nativeScroll ? $"Native scroll sensitivity: {native}" : "Native list not found, using fixed scroll step");
 
             string key = Plugin.PanelKey.Value.ToString();
             Text hint = UiKit.Label(t, Loc.S($"{key} — открыть/закрыть · клик по достижению — подробности · уголок справа внизу — размер окна",

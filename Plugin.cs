@@ -22,7 +22,7 @@ namespace AchievementTracker
         public const string ModGuid = "Slikfoul.AchievementTracker";
         private const string OldGuid = "valheim.achievementtracker";
         public const string ModName = "AchievementTracker";
-        public const string ModVersion = "1.0.1";
+        public const string ModVersion = "1.1.0";
 
         public static ManualLogSource Log;
 
@@ -101,6 +101,7 @@ namespace AchievementTracker
             Loc.Changed += CraftMarks.MarkDirty;
             HudEnabled.SettingChanged += (_, __) => TrackerHud.MarkDirty();
             Tracked.Changed += TrackerHud.MarkDirty;
+            TrackedSkills.Changed += TrackerHud.MarkSkillsDirty;
             Language.SettingChanged += (_, __) => Loc.RaiseChanged();
             Localization.OnLanguageChange += Loc.RaiseChanged;
             Loc.Changed += AchievementPanel.Rebuild;
@@ -111,6 +112,7 @@ namespace AchievementTracker
             _harmony = new Harmony(ModGuid);
             _harmony.PatchAll(typeof(Patches));
             _harmony.PatchAll(typeof(CraftMarks));
+            _harmony.PatchAll(typeof(SkillTrackingUi));
             Log.LogInfo($"{ModName} {ModVersion} loaded");
         }
 
@@ -134,6 +136,7 @@ namespace AchievementTracker
         private void OnDestroy()
         {
             _harmony?.UnpatchSelf();
+            SkillTrackingUi.Dispose();
         }
 
         private float _nextErrorLog;

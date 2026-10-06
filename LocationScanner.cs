@@ -126,7 +126,6 @@ namespace AchievementTracker
                     if (p.Length != 3 || !int.TryParse(p[2], out int biome)) continue;
                     Add(p[0], p[1].Length == 0 ? null : p[1], (Heightmap.Biome)biome);
                 }
-                Plugin.Log.LogInfo($"Location data loaded from cache: {Homes.Count} creatures");
                 return true;
             }
             catch (Exception e)
@@ -205,7 +204,7 @@ namespace AchievementTracker
         /// по 8 одновременно, это не заметно; когда персонаж уже в мире — по одному, чтобы не было подвисаний.
         /// </summary>
         private static IEnumerator Pipeline<T>(ZoneSystem world, List<T> items,
-            Func<T, SoftReferenceableAssets.SoftReference<GameObject>> refOf, Action<T, GameObject> read, Action onDone)
+            Func<T, SoftReferenceableAssets.SoftReference<GameObject>> refOf, Action<T, GameObject> read)
         {
             var inflight = new List<InFlight<T>>();
             int next = 0;
@@ -242,7 +241,6 @@ namespace AchievementTracker
                         f.Ref.Release();
                     }
                     inflight.RemoveAt(i);
-                    onDone();
                 }
                 yield return null;
             }
@@ -250,27 +248,24 @@ namespace AchievementTracker
 
         private static IEnumerator Scan()
         {
-            float started = Time.realtimeSinceStartup;
             Debug.Clear();
             ZoneSystem world = ZoneSystem.instance;
             var themePlaces = new Dictionary<Room.Theme, List<Place>>();
-            int n = 0;
 
             List<ZoneSystem.ZoneLocation> locations = world.m_locations
                 .Where(zl => zl != null && zl.m_enable && zl.m_prefab.IsValid).ToList();
-            yield return Pipeline(world, locations, zl => zl.m_prefab, (zl, go) => ReadLocation(zl, go, themePlaces), () => n++);
+            yield return Pipeline(world, locations, zl => zl.m_prefab, (zl, go) => ReadLocation(zl, go, themePlaces));
             if (world != ZoneSystem.instance) { s_running = false; yield break; }
 
             // Комнаты тем, которых нет ни в одном подземелье, грузить незачем
             List<DungeonDB.RoomData> rooms = DungeonDB.GetRooms()
                 .Where(rd => rd != null && rd.m_enabled && rd.m_prefab.IsValid && Flags(rd.m_theme).Any(themePlaces.ContainsKey)).ToList();
-            yield return Pipeline(world, rooms, rd => rd.m_prefab, (rd, go) => ReadRoom(rd, go, themePlaces), () => n++);
+            yield return Pipeline(world, rooms, rd => rd.m_prefab, (rd, go) => ReadRoom(rd, go, themePlaces));
             if (world != ZoneSystem.instance) { s_running = false; yield break; }
 
             SaveCache();
             Ready = true;
             s_running = false;
-            Plugin.Log.LogInfo($"Location scan done in {Time.realtimeSinceStartup - started:0.0}s: {Homes.Count} creatures in {n} locations/rooms");
         }
 
         private static void ReadLocation(ZoneSystem.ZoneLocation zl, GameObject go, Dictionary<Room.Theme, List<Place>> themePlaces)
