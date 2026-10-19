@@ -22,7 +22,7 @@ namespace AchievementTracker
         public const string ModGuid = "Slikfoul.AchievementTracker";
         private const string OldGuid = "valheim.achievementtracker";
         public const string ModName = "AchievementTracker";
-        public const string ModVersion = "1.1.0";
+        public const string ModVersion = "1.1.1";
 
         public static ManualLogSource Log;
 
@@ -140,6 +140,22 @@ namespace AchievementTracker
         }
 
         private float _nextErrorLog;
+
+        private void LateUpdate()
+        {
+            try
+            {
+                TrackerHud.UpdatePresentation();
+            }
+            catch (Exception e)
+            {
+                if (Time.time >= _nextErrorLog)
+                {
+                    _nextErrorLog = Time.time + 30f;
+                    Log.LogError(e);
+                }
+            }
+        }
 
         private void Update()
         {

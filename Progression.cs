@@ -467,10 +467,7 @@ namespace AchievementTracker
         {
             avail = Avail.Available;
             Vector3 pos = p.transform.position;
-            float d = stat.StartsWith("ExploreNorth") ? pos.z
-                : stat.StartsWith("ExploreSouth") ? -pos.z
-                : stat.StartsWith("ExploreEast") ? -pos.x
-                : pos.x;
+            float d = ExploreNavigation.SignedDistance(stat, pos);
             float left = ExploreDistance - d;
             reason = Loc.S(
                 $"ты сейчас в {Analyzer.Num(Mathf.Max(0f, d))} м в эту сторону, нужно дальше {Analyzer.Num(ExploreDistance)} м — осталось {Analyzer.Num(Mathf.Max(0f, left))} м",

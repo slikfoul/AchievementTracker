@@ -30,6 +30,14 @@ namespace AchievementTracker
         private static RectTransform s_root;
         private static RectTransform s_pinned;
         private static RectTransform s_toasts;
+        private static CanvasGroup s_rootGroup;
+        private static CanvasGroup s_pinnedGroup;
+        private static bool s_layoutDirty;
+        private static readonly Vector3[] ShipCorners = new Vector3[4];
+        private static bool s_hasSailingPlacement;
+        private static SailingLayoutKey s_sailingKey;
+        private static Vector2 s_sailingPosition;
+        private static bool s_sailingVisible;
         private static RectTransform s_skillSection;
         private static Text s_achievementHeader;
         private static Player s_player;
@@ -49,6 +57,7 @@ namespace AchievementTracker
         {
             if (s_root != null) Object.Destroy(s_root.gameObject);
             s_root = null;
+            s_hasSailingPlacement = false;
             Rows.Clear();
             SkillRows.Clear();
             Toasts.Clear();
@@ -66,11 +75,15 @@ namespace AchievementTracker
             s_nextSkillRefresh = 0f;
 
             s_root = UiKit.Stretch(UiKit.Rect("AchievementTrackerHud", Hud.instance.m_rootObject.transform));
+            s_hasSailingPlacement = false;
+            s_rootGroup = s_root.gameObject.AddComponent<CanvasGroup>();
+            s_rootGroup.blocksRaycasts = s_rootGroup.interactable = false;
 
             s_pinned = UiKit.Rect("Pinned", s_root);
             s_pinned.anchorMin = s_pinned.anchorMax = new Vector2(1f, 1f);
             s_pinned.pivot = new Vector2(1f, 1f);
             s_pinned.sizeDelta = new Vector2(310f, 0f);
+            s_pinnedGroup = s_pinned.gameObject.AddComponent<CanvasGroup>();
             UiKit.Bg(s_pinned.gameObject, BgColor(Plugin.HudOpacity.Value)).raycastTarget = false;
             VerticalLayoutGroup vlg = s_pinned.gameObject.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset(10, 10, 6, 8);
@@ -109,9 +122,117 @@ namespace AchievementTracker
             return true;
         }
 
+        /// <summary>Run after the game's UI updates; tracking continues while the map hides the overlay.</summary>
+        public static void UpdatePresentation()
+        {
+            if (s_root == null) return;
+            bool hidden = Player.m_localPlayer == null || Minimap.IsOpen();
+            s_rootGroup.alpha = hidden ? 0f : 1f;
+            if (hidden || !s_pinned.gameObject.activeInHierarchy) return;
+
+            if (s_layoutDirty)
+            {
+                s_layoutDirty = false;
+                LayoutRebuilder.ForceRebuildLayoutImmediate(s_pinned);
+            }
+
+            Vector2 configured = new Vector2(Plugin.HudX.Value, Plugin.HudY.Value);
+            Vector2 target = configured;
+            s_pinnedGroup.alpha = 1f;
+            Hud hud = Hud.instance;
+            RectTransform wind = hud != null ? hud.m_shipWindIndicatorRoot : null;
+            if (hud != null && hud.m_shipHudRoot != null && hud.m_shipHudRoot.activeInHierarchy &&
+                wind != null && wind.gameObject.activeInHierarchy)
+            {
+                Rect viewport = s_root.rect;
+                Vector2 anchor = new Vector2(Mathf.Lerp(viewport.xMin, viewport.xMax, s_pinned.anchorMin.x),
+                    Mathf.Lerp(viewport.yMin, viewport.yMax, s_pinned.anchorMin.y));
+                Rect desired = new Rect(anchor + configured + s_pinned.rect.position, s_pinned.rect.size);
+                Rect miniMapBounds = default;
+                Minimap minimap = Minimap.instance;
+                if (minimap != null && minimap.m_smallRoot != null && minimap.m_smallRoot.activeInHierarchy)
+                {
+                    RectTransform map = minimap.m_smallRoot.transform as RectTransform;
+                    Rect mapBounds = map != null ? UiElementBounds(map) : default;
+                    // Some HUD mods use a full-screen container for the mini-map.
+                    if (mapBounds.width <= 0f || mapBounds.height <= 0f ||
+                        mapBounds.width > viewport.width * 0.75f || mapBounds.height > viewport.height * 0.75f)
+                    {
+                        map = minimap.m_mapImageSmall != null ? minimap.m_mapImageSmall.rectTransform : null;
+                        mapBounds = map != null ? UiElementBounds(map) : default;
+                    }
+                    if (mapBounds.width > 0f && mapBounds.height > 0f)
+                        miniMapBounds = mapBounds;
+                }
+                Ship ship = Player.m_localPlayer.GetControlledShip();
+                var key = new SailingLayoutKey
+                {
+                    HudId = hud.GetInstanceID(), ShipId = ship != null ? ship.GetInstanceID() : 0,
+                    Desired = desired, Viewport = viewport, MiniMap = miniMapBounds, Scale = s_root.lossyScale
+                };
+                if (!s_hasSailingPlacement || !s_sailingKey.Matches(key))
+                {
+                    // The rudder controls are projected from the ship into screen space and move with
+                    // the camera. Reserve the fixed wind widget only, then keep this screen position.
+                    Rect obstacle = FixedWindBounds(hud, wind, viewport);
+                    if (miniMapBounds.width > 0f && miniMapBounds.height > 0f)
+                        obstacle = Union(obstacle, miniMapBounds);
+                    Rect safeArea = Rect.MinMaxRect(viewport.xMin + 8f, viewport.yMin + 8f,
+                        viewport.xMax - 8f, viewport.yMax - 8f);
+                    s_sailingVisible = HudPlacement.TryAvoid(desired, obstacle, safeArea, 16f,
+                        out Rect placed, preferBelow: true);
+                    s_sailingPosition = configured + placed.position - desired.position;
+                    s_sailingKey = key;
+                    s_hasSailingPlacement = true;
+                }
+                target = s_sailingPosition;
+                s_pinnedGroup.alpha = s_sailingVisible ? 1f : 0f;
+            }
+            else s_hasSailingPlacement = false;
+            if (s_pinned.anchoredPosition != target) s_pinned.anchoredPosition = target;
+        }
+
+        private static Rect FixedWindBounds(Hud hud, RectTransform wind, Rect viewport)
+        {
+            RectTransform frame = wind.parent as RectTransform;
+            Transform projectedControls = hud.m_shipControlsRoot != null ? hud.m_shipControlsRoot.transform : null;
+            if (frame != null && (projectedControls == null || !frame.IsChildOf(projectedControls)))
+            {
+                Rect bounds = UiElementBounds(frame);
+                if (bounds.width > 0f && bounds.height > 0f && bounds.width <= viewport.width * 0.4f &&
+                    bounds.height <= viewport.height * 0.4f)
+                    return bounds;
+            }
+            // Read the unrotated layout slot, not the rotating vessel/wind graphics.
+            Vector3 centerInParent = wind.localPosition + Vector3.Scale(wind.rect.center, wind.localScale);
+            Vector2 center = s_root.InverseTransformPoint(wind.parent.TransformPoint(centerInParent));
+            Vector3 extent = Vector3.Scale(wind.rect.size * 0.5f, wind.localScale);
+            Vector2 corner = s_root.InverseTransformPoint(wind.parent.TransformPoint(centerInParent + extent));
+            float radius = (corner - center).magnitude;
+            return new Rect(center - Vector2.one * radius, Vector2.one * radius * 2f);
+        }
+
+        private static Rect UiElementBounds(RectTransform element)
+        {
+            element.GetWorldCorners(ShipCorners);
+            Vector2 min = s_root.InverseTransformPoint(ShipCorners[0]);
+            Vector2 max = min;
+            foreach (Vector3 corner in ShipCorners)
+            {
+                Vector2 point = s_root.InverseTransformPoint(corner);
+                min = Vector2.Min(min, point);
+                max = Vector2.Max(max, point);
+            }
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
+        private static Rect Union(Rect a, Rect b) => Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin),
+            Mathf.Min(a.yMin, b.yMin), Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax));
+
         public static void ApplyPositions()
         {
             if (s_root == null) return;
+            s_hasSailingPlacement = false;
             s_pinned.anchoredPosition = new Vector2(Plugin.HudX.Value, Plugin.HudY.Value);
             s_toasts.anchoredPosition = new Vector2(0f, Plugin.ToastY.Value);
             // Прозрачность меняется только у фона — текст и полоски остаются чёткими
@@ -269,6 +390,7 @@ namespace AchievementTracker
         {
             s_skillSection.gameObject.SetActive(SkillRows.Count > 0);
             s_pinned.gameObject.SetActive(Plugin.HudEnabled.Value && (Rows.Count > 0 || SkillRows.Count > 0));
+            s_layoutDirty = true;
         }
 
         /// <summary>Под достижением — условия, которые можно выполнить прямо сейчас (не больше ListLength).</summary>

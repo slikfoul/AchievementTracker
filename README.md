@@ -4,6 +4,8 @@ Client-side BepInEx/Jötunn mod for Valheim's built-in achievements: an achievem
 
 Full description for players: [package/README.md](package/README.md) · Changes: [package/CHANGELOG.md](package/CHANGELOG.md)
 
+Built for Valheim's Deep North Update. The on-screen tracker avoids the ship's wind indicator and hides while the large map is open.
+
 ![Achievement window](docs/screenshots/achievement-window.webp)
 
 ![Progress popup and tracker](docs/screenshots/progress-popup-and-tracker.webp)

@@ -154,7 +154,13 @@ namespace AchievementTracker
             row.Toggle.navigation = new Navigation { mode = Navigation.Mode.None };
             UiKit.Stretch((RectTransform)row.Toggle.targetGraphic.transform);
             UiKit.Stretch((RectTransform)row.Toggle.graphic.transform);
-            row.Tooltip = go.AddComponent<UITooltip>();
+            // UITooltip needs the game's configured prefab before Set or pointer events can run.
+            UITooltip nativeTooltip = row.Element.GetComponentInChildren<UITooltip>(true);
+            if (nativeTooltip != null && nativeTooltip.m_tooltipPrefab != null)
+            {
+                row.Tooltip = go.AddComponent<UITooltip>();
+                row.Tooltip.m_tooltipPrefab = nativeTooltip.m_tooltipPrefab;
+            }
             row.Toggle.onValueChanged.AddListener(value => TrackedSkills.Set(row.Type, value));
         }
 
@@ -165,6 +171,7 @@ namespace AchievementTracker
                 if (row.Toggle == null) continue;
                 bool tracked = TrackedSkills.Contains(row.Type);
                 row.Toggle.SetIsOnWithoutNotify(tracked);
+                if (row.Tooltip == null) continue;
                 row.Tooltip.Set(Loc.S("Отслеживание навыка", "Skill tracking"),
                     tracked
                         ? Loc.S("Навык отслеживается. Нажми галочку или Alt + ЛКМ по навыку, чтобы снять отслеживание.",

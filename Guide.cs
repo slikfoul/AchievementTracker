@@ -382,13 +382,13 @@ namespace AchievementTracker
             },
             ["ExploreNSEW"] = new[]
             {
-                "Засчитывается время, проведённое за границей: достаточно пробыть там хотя бы секунду.",
-                "Time spent past the line counts: staying there for at least a second is enough."
+                "Пересеки отметку 10 350 м от центра и продолжай двигаться: игра проверяет условие раз в 2,5 секунды при перемещении более чем на метр. Полёт в режиме отладки не засчитывается.",
+                "Move beyond 10,350 m from the centre and keep moving: the game checks every 2.5 seconds after movement of more than a metre. Debug flying does not count."
             },
             ["ExploreNSEWNoMap"] = new[]
             {
-                "Засчитывается время, проведённое за границей: достаточно пробыть там хотя бы секунду.",
-                "Time spent past the line counts: staying there for at least a second is enough."
+                "В мире без карты пересеки отметку 10 350 м от центра и продолжай двигаться: проверка выполняется раз в 2,5 секунды при перемещении более чем на метр. Полёт в режиме отладки не засчитывается.",
+                "In a no-map world, move beyond 10,350 m from the centre and keep moving: checks run every 2.5 seconds after movement of more than a metre. Debug flying does not count."
             },
         };
 

@@ -1,6 +1,6 @@
 {
   "name": "AchievementTracker",
-  "version_number": "1.1.0",
+  "version_number": "1.1.1",
   "website_url": "https://github.com/slikfoul/AchievementTracker",
   "description": "Achievement window (F7): what you can do now and what's missing, full requirements with guides, achievement and skill tracking, progress popups and stars on items still needed. English and Russian.",
   "dependencies": [

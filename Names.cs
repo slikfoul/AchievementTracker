@@ -69,6 +69,17 @@ namespace AchievementTracker
 
         public static string Stat(PlayerStatType stat)
         {
+            // Correct presentation only; progress still comes from the original game stat.
+            if (stat == PlayerStatType.ExploreEast || stat == PlayerStatType.ExploreEastNoMap ||
+                stat == PlayerStatType.ExploreWest || stat == PlayerStatType.ExploreWestNoMap)
+            {
+                bool right = stat == PlayerStatType.ExploreWest || stat == PlayerStatType.ExploreWestNoMap;
+                string direction = right
+                    ? Loc.S("Исследовать дальний восток", "Explore the far east")
+                    : Loc.S("Исследовать дальний запад", "Explore the far west");
+                return stat.ToString().EndsWith("NoMap")
+                    ? direction + Loc.S(" — без карты", " — no map") : direction;
+            }
             string token = "$stat_" + stat;
             string s = L(token);
             if (!Missing(token, s)) return s;

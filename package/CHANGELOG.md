@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1
+
+- The tracked achievements and skills panel avoids both the ship's wind indicator and the mini-map, preferring the space below the sailing UI. It returns to its saved position afterwards.
+- The tracker and progress popups are hidden while the large map is open. Tracking continues in the background.
+- Corrected east/west exploration labels to match the map while preserving existing progress.
+- Fixed errors when hovering over skill tracking checkboxes.
+
 ## 1.1.0
 
 - Added skill tracking: Alt + left-click a skill in the game's Skills window, or click its checkbox in the left margin, to track or untrack it.
